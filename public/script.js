@@ -5,6 +5,9 @@ const pageBody = document.body;
 const phoneStage = document.querySelector(".phone-stage");
 const phoneShell = document.querySelector(".phone-shell");
 const frontGlass = document.querySelector(".front-glass");
+const scrollStory = document.getElementById("scrollStory");
+const scrollLine = document.getElementById("scrollLine");
+const scrollLogo = document.getElementById("scrollLogo");
 
 let activeIndex = 0;
 let sequenceStarted = false;
@@ -13,6 +16,17 @@ let parallaxFrame = 0;
 let showcaseLocked = false;
 let showcaseFrame = 0;
 let entryStarted = false;
+let scrollSequenceStarted = false;
+let scrollSequenceComplete = false;
+let lastScrollY = window.scrollY;
+let scrollLineTimeout;
+let scrollLogoTimeout;
+let autoScrollFrame = 0;
+let resetTimeout;
+
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
 
 function removeStartListeners() {
   window.removeEventListener("mousemove", handleFirstInteraction);
@@ -45,6 +59,42 @@ function showUi() {
   }
 
   pageBody.classList.add("reveal-ui");
+}
+
+function clearSequenceTimers() {
+  window.clearTimeout(sequenceTimeout);
+  window.clearTimeout(scrollLineTimeout);
+  window.clearTimeout(scrollLogoTimeout);
+  window.clearTimeout(resetTimeout);
+  window.cancelAnimationFrame(autoScrollFrame);
+  window.cancelAnimationFrame(showcaseFrame);
+}
+
+function resetExperience(shouldReplay = false) {
+  clearSequenceTimers();
+
+  sequenceStarted = false;
+  entryStarted = false;
+  scrollSequenceStarted = false;
+  scrollSequenceComplete = false;
+  showcaseLocked = false;
+  lastScrollY = 0;
+
+  pageBody?.classList.remove("reveal-ui", "phone-entered");
+  scrollStory?.classList.remove("is-sequencing", "is-complete");
+  scrollLine?.classList.remove("is-visible", "is-exiting");
+  scrollLogo?.classList.remove("is-visible");
+  phoneShell?.classList.remove("showcase-motion");
+
+  renderStory(0);
+  resetParallax();
+  window.scrollTo(0, 0);
+
+  if (shouldReplay) {
+    resetTimeout = window.setTimeout(() => {
+      handleInitialLoad();
+    }, 820);
+  }
 }
 
 function startPhoneEntry() {
@@ -183,6 +233,97 @@ function handleParallax(event) {
   });
 }
 
+function startAutoRollToBottom() {
+  const finalBrand = document.querySelector(".final-brand");
+  const startY = window.scrollY;
+  const targetY = finalBrand
+    ? Math.max(0, finalBrand.offsetTop)
+    : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const distance = targetY - startY;
+
+  if (distance <= 4) {
+    scrollSequenceComplete = true;
+    return;
+  }
+
+  const duration = 2800;
+  const start = performance.now();
+
+  function animate(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    window.scrollTo(0, startY + distance * eased);
+
+    if (progress < 1) {
+      autoScrollFrame = window.requestAnimationFrame(animate);
+      return;
+    }
+
+    window.scrollTo(0, targetY);
+    scrollSequenceComplete = true;
+  }
+
+  window.cancelAnimationFrame(autoScrollFrame);
+  autoScrollFrame = window.requestAnimationFrame(animate);
+}
+
+function maybeStartScrollSequence() {
+  if (
+    !scrollStory ||
+    !scrollLine ||
+    !scrollLogo ||
+    scrollSequenceStarted
+  ) {
+    return;
+  }
+
+  const rect = scrollStory.getBoundingClientRect();
+  const scrollingDown = window.scrollY > lastScrollY;
+  const sectionEntered = rect.top <= window.innerHeight * 0.95 && rect.bottom > window.innerHeight * 0.2;
+
+  lastScrollY = window.scrollY;
+
+  if (!scrollingDown || !sectionEntered) {
+    return;
+  }
+
+  scrollSequenceStarted = true;
+  scrollStory.classList.add("is-sequencing");
+  scrollLine.classList.add("is-visible");
+
+  window.clearTimeout(scrollLineTimeout);
+  window.clearTimeout(scrollLogoTimeout);
+
+  scrollLineTimeout = window.setTimeout(() => {
+    scrollLine.classList.add("is-exiting");
+  }, 2400);
+
+  scrollLogoTimeout = window.setTimeout(() => {
+    scrollStory.classList.add("is-complete");
+    startAutoRollToBottom();
+  }, 2600);
+}
+
+function updateScrollStory() {
+  if (!scrollStory || !scrollLine || !scrollLogo) {
+    return;
+  }
+
+  const scrollingUp = window.scrollY < lastScrollY;
+
+  if (window.scrollY <= 8 && scrollingUp && (scrollSequenceStarted || scrollSequenceComplete)) {
+    resetExperience(true);
+    return;
+  }
+
+  if (scrollSequenceComplete) {
+    lastScrollY = window.scrollY;
+    return;
+  }
+
+  maybeStartScrollSequence();
+}
+
 if (storyTrack && panels.length > 0) {
   renderStory(0);
 }
@@ -195,9 +336,13 @@ if (nextStory) {
 
 if (!sequenceStarted) {
   if (document.readyState === "complete") {
+    resetExperience(false);
     handleInitialLoad();
   } else {
-    window.addEventListener("load", handleInitialLoad, { once: true });
+    window.addEventListener("load", () => {
+      resetExperience(false);
+      handleInitialLoad();
+    }, { once: true });
   }
 }
 
@@ -206,3 +351,13 @@ if (phoneStage && phoneShell) {
   phoneStage.addEventListener("mouseleave", resetParallax);
   resetParallax();
 }
+
+window.addEventListener("scroll", updateScrollStory, { passive: true });
+window.addEventListener("resize", updateScrollStory);
+window.addEventListener("beforeunload", () => {
+  window.scrollTo(0, 0);
+});
+window.addEventListener("pageshow", () => {
+  window.scrollTo(0, 0);
+});
+updateScrollStory();

@@ -1,5 +1,5 @@
 :root {
-  --bg: #0a0a0a;
+  --bg: #050505;
   --panel: rgba(255, 255, 255, 0.04);
   --line: rgba(255, 255, 255, 0.11);
   --text: #f1f1f1;
@@ -18,6 +18,8 @@
   --glint-x: 50%;
   --glint-y: 22%;
   --phone-entry-x: 0px;
+  --phone-entry-y: 0px;
+  --phone-entry-rotate-z: 0deg;
   --phone-entry-scale: 1;
   --phone-entry-opacity: 1;
 }
@@ -35,16 +37,17 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100svh;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0 16%, transparent 16% 68%, rgba(255, 255, 255, 0.04) 68% 100%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: "IBM Plex Sans", sans-serif;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body.phone-entered .phone-shell {
   --phone-entry-x: 0px;
+  --phone-entry-y: 0px;
+  --phone-entry-rotate-z: 0deg;
   --phone-entry-scale: 1;
   --phone-entry-opacity: 1;
 }
@@ -61,17 +64,11 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at center, transparent 45%, rgba(0, 0, 0, 0.45) 100%);
+  background: none;
 }
 
 .ambient {
-  position: fixed;
-  inset: auto;
-  width: 36vw;
-  height: 36vw;
-  filter: blur(80px);
-  opacity: 0.18;
-  pointer-events: none;
+  display: none;
 }
 
 .ambient-left {
@@ -107,24 +104,28 @@ body::before {
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100svh;
-  padding: 72px 0 24px;
+  padding: 56px 0 20px;
   display: grid;
   grid-template-columns: 0.95fr 1.1fr;
   gap: 40px 48px;
   align-items: center;
   position: relative;
   z-index: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .intro-copy {
   align-self: center;
-  opacity: 0;
-  transform: translateY(12px);
-  filter: blur(18px);
-  pointer-events: none;
-  transition: opacity 1800ms ease, transform 1800ms ease, filter 2200ms ease;
-  transition-delay: 180ms;
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  width: auto;
+  opacity: 1;
+  transform: none;
+  filter: none;
+  pointer-events: auto;
+  text-align: center;
+  margin-right: -12px;
 }
 
 .kicker {
@@ -144,29 +145,13 @@ body::before {
 }
 
 .intro-copy h1 {
-  font-size: clamp(2.2rem, 4.4vw, 3.8rem);
-  line-height: 0.96;
-  max-width: 10ch;
+  font-size: clamp(0.95rem, 1.5vw, 1.2rem);
+  line-height: 1.35;
+  max-width: none;
   text-transform: lowercase;
-}
-
-.intro-text,
-.contact-panel p {
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.intro-text {
-  max-width: 46ch;
-  margin: 22px 0 0;
-  font-size: 1.02rem;
-}
-
-.intro-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 28px;
+  color: rgba(241, 241, 241, 0.82);
+  letter-spacing: 0.18em;
+  white-space: nowrap;
 }
 
 .button {
@@ -189,23 +174,19 @@ body::before {
   place-items: center;
   position: relative;
   min-height: 0;
-  height: min(82vh, 900px);
+  height: min(72vh, 760px);
   perspective: 1800px;
   overflow: visible;
+  margin-left: -88px;
 }
 
 .phone-backdrop {
-  position: absolute;
-  width: min(92%, 620px);
-  height: 52%;
-  background: rgba(255, 255, 255, 0.03);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: none;
 }
 
 .phone-shell {
   position: relative;
-  width: min(270px, 22vw, 64vw);
+  width: min(360px, 30vw, 74vw);
   aspect-ratio: 420 / 840;
   height: auto;
   min-height: 0;
@@ -219,11 +200,15 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.72);
   overflow: hidden;
   --phone-entry-x: min(78vw, 980px);
+  --phone-entry-y: 120px;
+  --phone-entry-rotate-z: 20deg;
   --phone-entry-scale: 0.9;
   --phone-entry-opacity: 0.28;
   opacity: var(--phone-entry-opacity);
   transform:
     translateX(var(--phone-entry-x))
+    translateY(var(--phone-entry-y))
+    rotateZ(var(--phone-entry-rotate-z))
     rotateX(var(--phone-rotate-x))
     rotateY(var(--phone-rotate-y))
     translateY(var(--phone-lift-y))
@@ -233,6 +218,133 @@ body::before {
     transform 1800ms cubic-bezier(0.16, 0.9, 0.24, 1),
     box-shadow 1800ms cubic-bezier(0.16, 0.9, 0.24, 1),
     opacity 1400ms ease-out;
+}
+
+.scroll-story {
+  position: relative;
+  min-height: 320vh;
+  background: var(--bg);
+}
+
+.scroll-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.scroll-copy {
+  width: min(100% - 48px, 1100px);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  position: relative;
+  min-height: 100%;
+}
+
+.scroll-line,
+.scroll-logo {
+  opacity: 0;
+  transform: translateY(32px);
+  filter: blur(18px);
+  transition: opacity 700ms ease, transform 900ms ease, filter 900ms ease;
+}
+
+.scroll-line.is-visible,
+.scroll-logo.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+.scroll-line.is-exiting {
+  opacity: 0;
+  transform: translateY(-16px);
+  filter: blur(10px);
+}
+
+.scroll-line {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  text-transform: lowercase;
+  letter-spacing: 0.28em;
+  font-size: clamp(1rem, 2vw, 1.6rem);
+}
+
+.scroll-logo h2 {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(4.4rem, 11vw, 9rem);
+  line-height: 0.82;
+  letter-spacing: -0.06em;
+  text-transform: lowercase;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.scroll-story.is-complete .scroll-logo {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+.final-brand {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+}
+
+.final-brand-inner {
+  width: min(100% - 48px, 1100px);
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.final-brand-lockup {
+  display: inline-grid;
+  justify-items: end;
+  gap: 26px;
+}
+
+.final-brand h2 {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(4.4rem, 11vw, 9rem);
+  line-height: 0.82;
+  letter-spacing: -0.06em;
+  text-transform: lowercase;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.final-brand-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  text-transform: lowercase;
+  letter-spacing: 0.08em;
+  font-size: 0.92rem;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.final-brand-link:hover,
+.final-brand-link:focus-visible {
+  color: rgba(255, 255, 255, 0.98);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .phone-shell.showcase-motion,
@@ -499,14 +611,6 @@ body::before {
   transform: translateZ(18px);
 }
 
-.story-line {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.72);
-  text-transform: lowercase;
-  letter-spacing: 0.34em;
-  font-size: clamp(0.72rem, 1.6vw, 1.1rem);
-}
-
 .play-button {
   width: 94px;
   height: 94px;
@@ -537,24 +641,11 @@ body::before {
   margin-left: 6px;
 }
 
-.wordmark-block {
-  display: grid;
-  gap: 6px;
-  transform: translateZ(20px);
-}
-
-.wordmark-block h2 {
-  font-size: clamp(4rem, 10vw, 6rem);
-  line-height: 0.86;
-  color: rgba(255, 255, 255, 0.9);
-  text-transform: lowercase;
-}
-
-.wordmark-block.compact h2 {
-  font-size: clamp(3.2rem, 8.6vw, 5.2rem);
-}
-
 @media (max-width: 980px) {
+  .phone-stage {
+    margin-left: 0;
+  }
+
   .intro-copy {
     opacity: 1;
     transform: none;
@@ -588,11 +679,6 @@ body::before {
 }
 
 @media (max-width: 720px) {
-  body {
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
   .phone-stage {
     height: min(62vh, 640px);
   }
@@ -610,6 +696,15 @@ body::before {
     transform: none;
   }
 
+  .scroll-story {
+    min-height: 260vh;
+  }
+
+  .scroll-line {
+    letter-spacing: 0.16em;
+    font-size: 0.95rem;
+  }
+
   .dynamic-island {
     top: 16px;
     width: 108px;
@@ -622,10 +717,6 @@ body::before {
 
   .story-panel {
     padding: 46px 18px 34px;
-  }
-
-  .story-line {
-    letter-spacing: 0.18em;
   }
 
 }
