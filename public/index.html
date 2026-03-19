@@ -14,7 +14,7 @@
     href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260319c">
 </head>
 <body>
   <div class="ambient ambient-left"></div>
@@ -42,16 +42,24 @@
           </div>
 
           <div class="screen">
-            <div class="story-track" id="storyTrack">
-              <section class="story-panel is-active">
-                <button class="play-button" type="button" id="nextStory" aria-label="Play next screen">
-                  <span></span>
-                </button>
-              </section>
-
-              <section class="story-panel"></section>
-
-              <section class="story-panel"></section>
+            <div class="phone-video-shell">
+              <video
+                class="phone-video"
+                id="phoneVideo"
+                playsinline
+                webkit-playsinline
+                preload="auto"
+                muted
+                loop
+              >
+                <source src="media/phone-video.mp4" type="video/mp4">
+              </video>
+              <button class="play-button" type="button" id="nextStory" aria-label="Play video with sound">
+                <span></span>
+              </button>
+              <button class="sound-toggle" type="button" id="soundToggle" aria-label="Enable sound">
+                Sound on
+              </button>
             </div>
           </div>
         </div>
@@ -72,12 +80,15 @@
   <section class="final-brand" aria-label="Contact">
     <div class="final-brand-inner">
       <div class="final-brand-lockup">
-        <h2>not corporate</h2>
+        <div class="final-brand-wordmark">
+          <h2>not corporate</h2>
+          <p>social media&nbsp;&nbsp;agency</p>
+        </div>
         <a class="final-brand-link" href="mailto:notcorporatecreative@gmail.com">Get in touch</a>
       </div>
     </div>
   </section>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20260319c"></script>
 </body>
 </html>

@@ -1,6 +1,4 @@
-const storyTrack = document.getElementById("storyTrack");
 const nextStory = document.getElementById("nextStory");
-const panels = Array.from(document.querySelectorAll(".story-panel"));
 const pageBody = document.body;
 const phoneStage = document.querySelector(".phone-stage");
 const phoneShell = document.querySelector(".phone-shell");
@@ -8,8 +6,10 @@ const frontGlass = document.querySelector(".front-glass");
 const scrollStory = document.getElementById("scrollStory");
 const scrollLine = document.getElementById("scrollLine");
 const scrollLogo = document.getElementById("scrollLogo");
+const phoneVideo = document.getElementById("phoneVideo");
+const soundToggle = document.getElementById("soundToggle");
+const phoneVideoShell = document.querySelector(".phone-video-shell");
 
-let activeIndex = 0;
 let sequenceStarted = false;
 let sequenceTimeout;
 let parallaxFrame = 0;
@@ -23,34 +23,14 @@ let scrollLineTimeout;
 let scrollLogoTimeout;
 let autoScrollFrame = 0;
 let resetTimeout;
+let soundUnlocked = false;
 
 if ("scrollRestoration" in history) {
   history.scrollRestoration = "manual";
 }
 
 function removeStartListeners() {
-  window.removeEventListener("mousemove", handleFirstInteraction);
-  window.removeEventListener("touchstart", handleFirstInteraction);
-  window.removeEventListener("keydown", handleFirstInteraction);
   window.removeEventListener("load", handleInitialLoad);
-}
-
-function renderStory(index) {
-  if (!storyTrack) {
-    return;
-  }
-
-  activeIndex = index;
-  storyTrack.style.transform = `translateY(-${index * (100 / panels.length)}%)`;
-
-  panels.forEach((panel, panelIndex) => {
-    panel.classList.toggle("is-active", panelIndex === index);
-  });
-}
-
-function cycleStory() {
-  const nextIndex = (activeIndex + 1) % panels.length;
-  renderStory(nextIndex);
 }
 
 function showUi() {
@@ -85,8 +65,14 @@ function resetExperience(shouldReplay = false) {
   scrollLine?.classList.remove("is-visible", "is-exiting");
   scrollLogo?.classList.remove("is-visible");
   phoneShell?.classList.remove("showcase-motion");
-
-  renderStory(0);
+  phoneVideoShell?.classList.remove("is-playing");
+  soundToggle?.classList.remove("is-visible");
+  soundUnlocked = false;
+  if (phoneVideo) {
+    phoneVideo.pause();
+    phoneVideo.muted = true;
+    phoneVideo.currentTime = 0;
+  }
   resetParallax();
   window.scrollTo(0, 0);
 
@@ -151,8 +137,44 @@ function startShowcaseMotion() {
   showcaseFrame = window.requestAnimationFrame(animate);
 }
 
+async function startPhoneVideo() {
+  if (!phoneVideo) {
+    return;
+  }
+
+  try {
+    await phoneVideo.play();
+    phoneVideoShell?.classList.add("is-playing");
+    if (!soundUnlocked) {
+      soundToggle?.classList.add("is-visible");
+    }
+  } catch (error) {
+    phoneVideoShell?.classList.remove("is-playing");
+  }
+}
+
+async function enableSound() {
+  if (!phoneVideo || soundUnlocked) {
+    return;
+  }
+
+  soundUnlocked = true;
+  phoneVideo.muted = false;
+  soundToggle?.classList.remove("is-visible");
+  nextStory?.setAttribute("aria-label", "Video playing with sound");
+
+  try {
+    await phoneVideo.play();
+  } catch (error) {
+    phoneVideo.muted = true;
+    soundUnlocked = false;
+    soundToggle?.classList.add("is-visible");
+  }
+}
+
 function startSequence() {
-  if (!storyTrack || panels.length === 0 || sequenceStarted) {
+  if (sequenceStarted) {
+    enableSound();
     return;
   }
 
@@ -160,19 +182,11 @@ function startSequence() {
   removeStartListeners();
   window.clearTimeout(sequenceTimeout);
   pageBody?.classList.remove("reveal-ui");
-  renderStory(0);
-
-  sequenceTimeout = window.setTimeout(() => {
-    renderStory(2);
-  }, 3200);
+  startPhoneVideo();
 
   sequenceTimeout = window.setTimeout(() => {
     showUi();
-  }, 6400);
-}
-
-function handleFirstInteraction() {
-  startSequence();
+  }, 2600);
 }
 
 function handleInitialLoad() {
@@ -324,13 +338,16 @@ function updateScrollStory() {
   maybeStartScrollSequence();
 }
 
-if (storyTrack && panels.length > 0) {
-  renderStory(0);
-}
-
 if (nextStory) {
   nextStory.addEventListener("click", () => {
     startSequence();
+    enableSound();
+  });
+}
+
+if (soundToggle) {
+  soundToggle.addEventListener("click", () => {
+    enableSound();
   });
 }
 
@@ -351,6 +368,14 @@ if (phoneStage && phoneShell) {
   phoneStage.addEventListener("mouseleave", resetParallax);
   resetParallax();
 }
+
+window.addEventListener("pointerdown", () => {
+  enableSound();
+}, { passive: true });
+
+window.addEventListener("keydown", () => {
+  enableSound();
+}, { passive: true });
 
 window.addEventListener("scroll", updateScrollStory, { passive: true });
 window.addEventListener("resize", updateScrollStory);
