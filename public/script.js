@@ -5,10 +5,15 @@ const phoneShell = document.querySelector(".phone-shell");
 const frontGlass = document.querySelector(".front-glass");
 const scrollStory = document.getElementById("scrollStory");
 const scrollLine = document.getElementById("scrollLine");
-const scrollLogo = document.getElementById("scrollLogo");
+const scrollBrand = document.getElementById("scrollBrand");
 const phoneVideo = document.getElementById("phoneVideo");
 const soundToggle = document.getElementById("soundToggle");
 const phoneVideoShell = document.querySelector(".phone-video-shell");
+const introHeading = document.getElementById("introHeading");
+const contactLink = document.querySelector(".scroll-brand-link");
+const phoneDrift = document.getElementById("phoneDrift");
+const DISABLE_PAGE_AUTO_SCROLL = true;
+const ENABLE_PHONE_DISAPPEAR = false;
 
 let sequenceStarted = false;
 let sequenceTimeout;
@@ -21,9 +26,78 @@ let scrollSequenceComplete = false;
 let lastScrollY = window.scrollY;
 let scrollLineTimeout;
 let scrollLogoTimeout;
+let autoRollTimeout;
 let autoScrollFrame = 0;
 let resetTimeout;
 let soundUnlocked = false;
+let typingInProgress = false;
+let introRunId = 0;
+let audioContext;
+let analyticsReady = false;
+let trackedFinalReveal = false;
+let trackedPhoneVideoStart = false;
+let phoneDragging = false;
+let phoneHidden = false;
+let lastPhoneTap = 0;
+let phoneDragMoved = false;
+const phoneDragOffset = { x: 0, y: 0 };
+const phonePointerStart = { x: 0, y: 0 };
+
+function isMobilePhoneLayout() {
+  return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function getMeasurementId() {
+  return window.NOTCORPORATE_ANALYTICS?.measurementId?.trim() || "";
+}
+
+function loadAnalytics() {
+  const measurementId = getMeasurementId();
+  if (!measurementId || analyticsReady || typeof document === "undefined") {
+    return;
+  }
+
+  const analyticsScript = document.createElement("script");
+  analyticsScript.async = true;
+  analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+  document.head.appendChild(analyticsScript);
+
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function gtag() {
+    window.dataLayer.push(arguments);
+  };
+
+  window.gtag("js", new Date());
+  window.gtag("config", measurementId, {
+    page_title: document.title,
+    page_location: window.location.href
+  });
+
+  analyticsReady = true;
+}
+
+function trackEvent(name, params = {}) {
+  if (!analyticsReady || typeof window.gtag !== "function") {
+    return;
+  }
+
+  window.gtag("event", name, params);
+}
+
+const typingSteps = [
+  { text: "atten", delay: 168 },
+  { text: "r", delay: 210 },
+  { pause: 620 },
+  { delete: 1, delay: 230 },
+  { pause: 260 },
+  { text: "tion", delay: 168 },
+  { text: " is ", delay: 184 },
+  { text: "curremcy", delay: 168 },
+  { pause: 860 },
+  { delete: 3, delay: 230 },
+  { pause: 320 },
+  { text: "ncy", delay: 172 }
+];
 
 if ("scrollRestoration" in history) {
   history.scrollRestoration = "manual";
@@ -31,6 +105,70 @@ if ("scrollRestoration" in history) {
 
 function removeStartListeners() {
   window.removeEventListener("load", handleInitialLoad);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function ensureAudioContext() {
+  if (audioContext || typeof window === "undefined") {
+    return audioContext;
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  audioContext = new AudioContextClass();
+  return audioContext;
+}
+
+async function unlockAudio() {
+  const context = ensureAudioContext();
+  if (!context) {
+    return false;
+  }
+
+  if (context.state === "suspended") {
+    try {
+      await context.resume();
+    } catch (error) {
+      return false;
+    }
+  }
+
+  return context.state === "running";
+}
+
+function playTypingClick() {
+  if (!typingInProgress || !soundUnlocked) {
+    return;
+  }
+
+  const context = ensureAudioContext();
+  if (!context || context.state !== "running") {
+    return;
+  }
+
+  const now = context.currentTime;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(1450 + Math.random() * 190, now);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.018, now + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.06);
 }
 
 function showUi() {
@@ -45,6 +183,7 @@ function clearSequenceTimers() {
   window.clearTimeout(sequenceTimeout);
   window.clearTimeout(scrollLineTimeout);
   window.clearTimeout(scrollLogoTimeout);
+  window.clearTimeout(autoRollTimeout);
   window.clearTimeout(resetTimeout);
   window.cancelAnimationFrame(autoScrollFrame);
   window.cancelAnimationFrame(showcaseFrame);
@@ -59,19 +198,36 @@ function resetExperience(shouldReplay = false) {
   scrollSequenceComplete = false;
   showcaseLocked = false;
   lastScrollY = 0;
+  introRunId += 1;
+  typingInProgress = false;
+  trackedFinalReveal = false;
+  trackedPhoneVideoStart = false;
+  phoneHidden = false;
+  phoneDragging = false;
 
   pageBody?.classList.remove("reveal-ui", "phone-entered");
   scrollStory?.classList.remove("is-sequencing", "is-complete");
-  scrollLine?.classList.remove("is-visible", "is-exiting");
-  scrollLogo?.classList.remove("is-visible");
+  scrollLine?.classList.remove("is-visible");
   phoneShell?.classList.remove("showcase-motion");
+  phoneDrift?.classList.remove("is-dragging", "is-poofing", "is-hidden");
+  phoneDrift?.classList.remove("is-mobile-free");
   phoneVideoShell?.classList.remove("is-playing");
-  soundToggle?.classList.remove("is-visible");
+  introHeading?.classList.remove("is-typing");
   soundUnlocked = false;
+  if (introHeading) {
+    introHeading.textContent = "";
+  }
   if (phoneVideo) {
     phoneVideo.pause();
     phoneVideo.muted = true;
     phoneVideo.currentTime = 0;
+  }
+  updateSoundToggleUi();
+  if (phoneDrift) {
+    phoneDrift.style.left = "";
+    phoneDrift.style.top = "";
+    phoneDrift.style.right = "";
+    phoneDrift.style.bottom = "";
   }
   resetParallax();
   window.scrollTo(0, 0);
@@ -84,7 +240,7 @@ function resetExperience(shouldReplay = false) {
 }
 
 function startPhoneEntry() {
-  if (!phoneShell || !pageBody || window.innerWidth <= 980 || entryStarted) {
+  if (!phoneShell || !pageBody || entryStarted || phoneHidden) {
     return;
   }
 
@@ -145,8 +301,12 @@ async function startPhoneVideo() {
   try {
     await phoneVideo.play();
     phoneVideoShell?.classList.add("is-playing");
-    if (!soundUnlocked) {
-      soundToggle?.classList.add("is-visible");
+    if (!trackedPhoneVideoStart) {
+      trackEvent("phone_video_start", {
+        event_category: "engagement",
+        event_label: "hero_phone_video"
+      });
+      trackedPhoneVideoStart = true;
     }
   } catch (error) {
     phoneVideoShell?.classList.remove("is-playing");
@@ -154,22 +314,109 @@ async function startPhoneVideo() {
 }
 
 async function enableSound() {
-  if (!phoneVideo || soundUnlocked) {
+  if (soundUnlocked) {
+    return;
+  }
+
+  const unlocked = await unlockAudio();
+  if (!unlocked) {
     return;
   }
 
   soundUnlocked = true;
+  trackEvent("enable_sound", {
+    event_category: "engagement",
+    event_label: "phone_video_sound"
+  });
+  if (!phoneVideo) {
+    return;
+  }
+
   phoneVideo.muted = false;
-  soundToggle?.classList.remove("is-visible");
   nextStory?.setAttribute("aria-label", "Video playing with sound");
+  updateSoundToggleUi();
 
   try {
     await phoneVideo.play();
   } catch (error) {
     phoneVideo.muted = true;
     soundUnlocked = false;
-    soundToggle?.classList.add("is-visible");
+    updateSoundToggleUi();
   }
+}
+
+function updateSoundToggleUi() {
+  if (!soundToggle || !phoneVideo) {
+    return;
+  }
+
+  const isMuted = phoneVideo.muted;
+  soundToggle.textContent = isMuted ? "sound on" : "sound off";
+  soundToggle.setAttribute("aria-label", isMuted ? "Enable sound" : "Disable sound");
+}
+
+async function togglePhoneSound() {
+  if (!phoneVideo || phoneHidden) {
+    return;
+  }
+
+  if (phoneVideo.muted) {
+    await enableSound();
+    updateSoundToggleUi();
+    return;
+  }
+
+  phoneVideo.muted = true;
+  soundUnlocked = false;
+  nextStory?.setAttribute("aria-label", "Video muted");
+  updateSoundToggleUi();
+}
+
+async function runTypedIntro(runId) {
+  if (!introHeading) {
+    return;
+  }
+
+  typingInProgress = true;
+  introHeading.classList.add("is-typing");
+  introHeading.textContent = "";
+
+  for (const step of typingSteps) {
+    if (runId !== introRunId) {
+      return;
+    }
+
+    if (typeof step.text === "string") {
+      for (const char of step.text) {
+        if (runId !== introRunId) {
+          return;
+        }
+        introHeading.textContent += char;
+        playTypingClick();
+        await delay(step.delay ?? 82);
+      }
+      continue;
+    }
+
+    if (typeof step.pause === "number") {
+      await delay(step.pause);
+      continue;
+    }
+
+    if (typeof step.delete === "number") {
+      for (let index = 0; index < step.delete; index += 1) {
+        if (runId !== introRunId) {
+          return;
+        }
+        introHeading.textContent = introHeading.textContent.slice(0, -1);
+        playTypingClick();
+        await delay(step.delay ?? 100);
+      }
+    }
+  }
+
+  typingInProgress = false;
+  introHeading.classList.remove("is-typing");
 }
 
 function startSequence() {
@@ -189,16 +436,33 @@ function startSequence() {
   }, 2600);
 }
 
-function handleInitialLoad() {
+async function handleInitialLoad() {
+  const runId = introRunId;
+  await delay(520);
+
+  if (runId !== introRunId) {
+    return;
+  }
+
+  await runTypedIntro(runId);
+
+  if (runId !== introRunId) {
+    return;
+  }
+
+  startPhoneEntry();
   window.setTimeout(() => {
-    startPhoneEntry();
-    window.setTimeout(() => {
-      startSequence();
-    }, 700);
-    window.setTimeout(() => {
-      startShowcaseMotion();
-    }, 2850);
-  }, 1000);
+    if (runId !== introRunId) {
+      return;
+    }
+    startSequence();
+  }, 520);
+  window.setTimeout(() => {
+    if (runId !== introRunId) {
+      return;
+    }
+    startShowcaseMotion();
+  }, 3000);
 }
 
 function resetParallax() {
@@ -218,7 +482,7 @@ function resetParallax() {
 }
 
 function handleParallax(event) {
-  if (!phoneStage || !phoneShell || !frontGlass || window.innerWidth <= 980 || showcaseLocked) {
+  if (!phoneStage || !phoneShell || !frontGlass || window.innerWidth <= 980 || showcaseLocked || phoneDragging) {
     return;
   }
 
@@ -248,10 +512,14 @@ function handleParallax(event) {
 }
 
 function startAutoRollToBottom() {
-  const finalBrand = document.querySelector(".final-brand");
+  if (DISABLE_PAGE_AUTO_SCROLL) {
+    scrollSequenceComplete = true;
+    return;
+  }
+
   const startY = window.scrollY;
-  const targetY = finalBrand
-    ? Math.max(0, finalBrand.offsetTop)
+  const targetY = scrollStory
+    ? Math.max(0, scrollStory.offsetTop + scrollStory.offsetHeight - window.innerHeight)
     : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   const distance = targetY - startY;
 
@@ -285,7 +553,7 @@ function maybeStartScrollSequence() {
   if (
     !scrollStory ||
     !scrollLine ||
-    !scrollLogo ||
+    !scrollBrand ||
     scrollSequenceStarted
   ) {
     return;
@@ -303,30 +571,36 @@ function maybeStartScrollSequence() {
 
   scrollSequenceStarted = true;
   scrollStory.classList.add("is-sequencing");
-  scrollLine.classList.add("is-visible");
 
   window.clearTimeout(scrollLineTimeout);
   window.clearTimeout(scrollLogoTimeout);
 
   scrollLineTimeout = window.setTimeout(() => {
-    scrollLine.classList.add("is-exiting");
-  }, 2400);
+    scrollLine.classList.add("is-visible");
+  }, 1500);
 
   scrollLogoTimeout = window.setTimeout(() => {
     scrollStory.classList.add("is-complete");
-    startAutoRollToBottom();
-  }, 2600);
+    if (!trackedFinalReveal) {
+      trackEvent("final_reveal_view", {
+        event_category: "engagement",
+        event_label: "scroll_brand_reveal"
+      });
+      trackedFinalReveal = true;
+    }
+  }, 3400);
+
+  if (!DISABLE_PAGE_AUTO_SCROLL) {
+    autoRollTimeout = window.setTimeout(() => {
+      startAutoRollToBottom();
+    }, 3900);
+  } else {
+    scrollSequenceComplete = true;
+  }
 }
 
 function updateScrollStory() {
-  if (!scrollStory || !scrollLine || !scrollLogo) {
-    return;
-  }
-
-  const scrollingUp = window.scrollY < lastScrollY;
-
-  if (window.scrollY <= 8 && scrollingUp && (scrollSequenceStarted || scrollSequenceComplete)) {
-    resetExperience(true);
+  if (!scrollStory || !scrollLine || !scrollBrand) {
     return;
   }
 
@@ -338,6 +612,113 @@ function updateScrollStory() {
   maybeStartScrollSequence();
 }
 
+function hidePhone() {
+  if (!ENABLE_PHONE_DISAPPEAR || !phoneDrift || phoneHidden) {
+    return;
+  }
+
+  phoneDrift.classList.add("is-poofing");
+  window.setTimeout(() => {
+    phoneHidden = true;
+    phoneDrift.classList.add("is-hidden");
+    phoneDrift.classList.remove("is-poofing", "is-dragging");
+  }, 420);
+}
+
+function setupDraggablePhone() {
+  if (!phoneDrift) {
+    return;
+  }
+
+  const phoneToggleTarget = frontGlass || phoneShell || phoneDrift;
+
+  const handlePhoneToggleTap = (event) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("[data-no-drag]")) {
+      lastPhoneTap = 0;
+      return;
+    }
+
+    if (phoneDragging || phoneDragMoved) {
+      lastPhoneTap = 0;
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastPhoneTap < 280) {
+      togglePhoneSound();
+      lastPhoneTap = 0;
+      return;
+    }
+
+    lastPhoneTap = now;
+  };
+
+  const onPointerMove = (event) => {
+    if (!phoneDragging || phoneHidden) {
+      return;
+    }
+
+    if (
+      Math.abs(event.clientX - phonePointerStart.x) > 6 ||
+      Math.abs(event.clientY - phonePointerStart.y) > 6
+    ) {
+      phoneDragMoved = true;
+    }
+
+    const stageRect = phoneStage?.getBoundingClientRect();
+    const stageLeft = stageRect ? stageRect.left : 0;
+    const stageTop = stageRect ? stageRect.top : 0;
+
+    phoneDrift.style.left = `${event.clientX - stageLeft - phoneDragOffset.x}px`;
+    phoneDrift.style.top = `${event.clientY - stageTop - phoneDragOffset.y}px`;
+    phoneDrift.style.right = "auto";
+    phoneDrift.style.bottom = "auto";
+  };
+
+  const endDrag = () => {
+    phoneDragging = false;
+    phoneDrift.classList.remove("is-dragging");
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", endDrag);
+  };
+
+  phoneDrift.addEventListener("pointerdown", (event) => {
+    if (phoneHidden) {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("[data-no-drag]")) {
+      return;
+    }
+
+    const rect = phoneDrift.getBoundingClientRect();
+    const stageRect = phoneStage?.getBoundingClientRect();
+    const stageLeft = stageRect ? stageRect.left : 0;
+    const stageTop = stageRect ? stageRect.top : 0;
+    phoneDragOffset.x = event.clientX - rect.left;
+    phoneDragOffset.y = event.clientY - rect.top;
+    phonePointerStart.x = event.clientX;
+    phonePointerStart.y = event.clientY;
+    phoneDragMoved = false;
+    phoneDragging = true;
+    phoneDrift.classList.add("is-dragging");
+    if (isMobilePhoneLayout()) {
+      phoneDrift.classList.add("is-mobile-free");
+    }
+    phoneDrift.setPointerCapture?.(event.pointerId);
+    phoneDrift.style.left = `${rect.left - stageLeft}px`;
+    phoneDrift.style.top = `${rect.top - stageTop}px`;
+    phoneDrift.style.right = "auto";
+    phoneDrift.style.bottom = "auto";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", endDrag);
+  });
+
+  phoneToggleTarget?.addEventListener("pointerup", handlePhoneToggleTap);
+}
+
 if (nextStory) {
   nextStory.addEventListener("click", () => {
     startSequence();
@@ -347,16 +728,29 @@ if (nextStory) {
 
 if (soundToggle) {
   soundToggle.addEventListener("click", () => {
-    enableSound();
+    togglePhoneSound();
+  });
+}
+
+setupDraggablePhone();
+
+if (contactLink) {
+  contactLink.addEventListener("click", () => {
+    trackEvent("contact_click", {
+      event_category: "conversion",
+      event_label: "get_in_touch"
+    });
   });
 }
 
 if (!sequenceStarted) {
   if (document.readyState === "complete") {
+    loadAnalytics();
     resetExperience(false);
     handleInitialLoad();
   } else {
     window.addEventListener("load", () => {
+      loadAnalytics();
       resetExperience(false);
       handleInitialLoad();
     }, { once: true });
@@ -370,11 +764,11 @@ if (phoneStage && phoneShell) {
 }
 
 window.addEventListener("pointerdown", () => {
-  enableSound();
+  unlockAudio();
 }, { passive: true });
 
 window.addEventListener("keydown", () => {
-  enableSound();
+  unlockAudio();
 }, { passive: true });
 
 window.addEventListener("scroll", updateScrollStory, { passive: true });
