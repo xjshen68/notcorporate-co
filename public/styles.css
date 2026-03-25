@@ -908,14 +908,16 @@ body::before {
   .scroll-line {
     letter-spacing: 0.18em;
     font-size: 0.82rem;
-    align-self: center;
+    align-self: start;
     justify-self: center;
+    width: 100%;
+    margin: 0 auto;
     text-align: center;
   }
 
   .scroll-copy {
-    justify-content: center;
-    padding: 0;
+    justify-content: flex-start;
+    padding: 28svh 0 0;
   }
 
   .scroll-brand {
@@ -924,33 +926,40 @@ body::before {
 
   .scroll-lockup {
     left: 50%;
-    bottom: 56px;
+    bottom: 64px;
     transform: translateX(-50%);
     display: grid;
     justify-items: center;
-    gap: 14px;
+    gap: 12px;
     width: max-content;
   }
 
+  .scroll-brand-wordmark {
+    gap: 0;
+  }
+
   .scroll-brand h2 {
-    font-size: clamp(1.9rem, 8.8vw, 2.8rem);
+    font-size: clamp(2.78rem, 15vw, 4.1rem);
+    line-height: 0.76;
+    letter-spacing: -0.062em;
   }
 
   .scroll-brand-subline {
-    font-size: 0.5rem;
-    letter-spacing: 0.28em;
-    gap: 1.45em;
-    transform: translate(-0.18em, -0.08em);
+    font-size: 0.66rem;
+    line-height: 1;
+    letter-spacing: 0.31em;
+    gap: 1.84em;
+    transform: translate(-0.48em, -0.28em);
   }
 
   .scroll-brand-subline span:first-child {
-    transform: translateX(-0.28em);
+    transform: translateX(-0.72em);
   }
 
   .scroll-brand-link {
-    min-height: 34px;
-    padding: 0 14px;
-    font-size: 0.7rem;
+    min-height: 32px;
+    padding: 0 13px;
+    font-size: 0.66rem;
     position: static;
     left: auto;
     right: auto;
